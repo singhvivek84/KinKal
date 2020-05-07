@@ -18,6 +18,7 @@
 #include <cfloat>
 #include <string>
 #include <vector>
+#include <memory>
 using std::endl;
 using std::ostream;
 //
@@ -71,48 +72,41 @@ namespace MatEnv {
     _taul(detMtrProp->getTaul())
   {
     _shellCorrectionVector = 
-      new std::vector< double >(detMtrProp->getShellCorrectionVector());
+      std::make_unique<std::vector< double >>(detMtrProp->getShellCorrectionVector());
     _vecNbOfAtomsPerVolume = 
-      new std::vector< double >(detMtrProp->getVecNbOfAtomsPerVolume());
+      std::make_unique<std::vector< double >>(detMtrProp->getVecNbOfAtomsPerVolume());
     _vecTau0 = 
-      new std::vector< double >(detMtrProp->getVecTau0());
-    _vecAlow = new std::vector< double >(detMtrProp->getVecAlow());
-    _vecBlow = new std::vector< double >(detMtrProp->getVecBlow());
-    _vecClow = new std::vector< double >(detMtrProp->getVecClow());
-    _vecZ = new std::vector< double >(detMtrProp->getVecZ());
+      std::make_unique<std::vector< double >>(detMtrProp->getVecTau0());
+    _vecAlow = std::make_unique<std::vector< double >>(detMtrProp->getVecAlow());
+    _vecBlow = std::make_unique<std::vector< double >>(detMtrProp->getVecBlow());
+    _vecClow = std::make_unique<std::vector< double >>(detMtrProp->getVecClow());
+    _vecZ = std::make_unique<std::vector< double >>(detMtrProp->getVecZ());
     // compute cached values; these are used in detailed scattering models
-    _invx0 = _density/_radthick;
-    _nbar = _invx0*1.587e7*pow(_zeff,1.0/3.0)/((_zeff+1)*log(287/sqrt(_zeff)));
-    _chic2 = 1.57e1*_zeff*(_zeff+1)/_aeff;  
-    _chia2_1 = 2.007e-5*pow(_zeff,2.0/3.0);
-    _chia2_2 = 3.34*pow(_zeff*_alpha,2);
+    _invx0 = _density / _radthick;
+    _nbar = _invx0 * 1.587e7 * pow(_zeff,1.0/3.0) / ( (_zeff+1) * log(287 / sqrt(_zeff)) );
+    _chic2 = 1.57e1 * _zeff * (_zeff + 1) / _aeff;  
+    _chia2_1 = 2.007e-5 * pow(_zeff,2.0/3.0);
+    _chia2_2 = 3.34 * pow(_zeff*_alpha,2);
 
-    if (detMtrProp->getEnergyTcut()>0.0) {
+    if ( detMtrProp->getEnergyTcut() > 0.0) {
       _cutOffEnergy = detMtrProp->getEnergyTcut();
       _elossType = deposit;
     }
-    if (detMtrProp->getState() == "gas" && detMtrProp->getDensity()<0.01) {
+    if ( detMtrProp->getState() == "gas" && detMtrProp->getDensity() < 0.01 ) {
       _scatterfrac = 0.999999;
     }
   }
+ 
 
-  DetMaterial::~DetMaterial()
-  {
-    delete _shellCorrectionVector;
-    delete _vecNbOfAtomsPerVolume;
-    delete _vecTau0;
-    delete _vecAlow;
-    delete _vecBlow;
-    delete _vecClow;
-    delete _vecZ;
+  DetMaterial::~DetMaterial(){
   }
-
+  
   //
   //  Multiple scattering function
   //
   double
     DetMaterial::scatterAngleRMS(double mom, double pathlen,double mass) const {
-      if(mom>0.0){
+      if( mom > 0.0){
 	double beta = particleBeta(mom,mass);
 	// pdg formulat
 	//    double radfrac = fabs(pathlen*_invx0);
@@ -120,19 +114,19 @@ namespace MatEnv {
 	// old Kalman formula
 	//    double oldsig = 0.011463*sqrt(radfrac)/(mom*particleBeta(mom,mass));
 	// DNB 20/1/2011  Updated to use Dahl-Lynch formula from  NIMB58 (1991)
-	double invmom2 = 1.0/pow(mom,2);
-	double invb2 = 1.0/pow(beta,2);
+	double invmom2 = 1.0 / pow(mom,2);
+	double invb2 = 1.0 / pow(beta,2);
 	// convert to path in gm/cm^2!!!
-	double path = fabs(pathlen)*_density;
-	double chic2 = _chic2*path*invb2*invmom2;
-	double chia2 = _chia2_1*(1.0 + _chia2_2*invb2)*invmom2;
-	double omega = chic2/chia2;
-	static double vfactor = 0.5/(1-_scatterfrac);
-	double v = vfactor*omega;
-	static double sig2factor = 1.0/(1+_scatterfrac*_scatterfrac);
-	double sig2 = sig2factor*chic2*( (1+v)*log(1+v)/v - 1);
+	double path = fabs(pathlen) * _density;
+	double chic2 = _chic2 * path * invb2 *invmom2;
+	double chia2 = _chia2_1 * (1.0 + _chia2_2 * invb2) * invmom2;
+	double omega = chic2 / chia2;
+	static double vfactor = 0.5 / (1 - _scatterfrac);
+	double v = vfactor * omega;
+	static double sig2factor = 1.0 / ( 1 + _scatterfrac * _scatterfrac);
+	double sig2 = sig2factor * chic2 * ( (1+v) * log(1+v)/v - 1);
 	// protect against underflow
-	double sigdl = sqrt(std::max(0.0,sig2));
+	double sigdl = sqrt( std::max(0.0,sig2) );
 	// check
 	return sigdl;
       } else
@@ -141,56 +135,55 @@ namespace MatEnv {
 
   double
     DetMaterial::dEdx(double mom,dedxtype type,double mass) const {
-      if(mom>0.0){
-	double Eexc2 = _eexc*_eexc ;
+      if( mom > 0.0){
+	double Eexc2 = _eexc * _eexc ;
 
 	// New energy loss implementation
 
 	double Tmax,gamma2,beta2,bg2,rcut,delta,x,sh,dedx ;
 	double beta  = particleBeta(mom,mass) ;
 	double gamma = particleGamma(mom,mass) ;
-	double tau = gamma-1. ;
+	double tau = gamma - 1. ;
 
 	// high energy part , Bethe-Bloch formula 
 
-	beta2 = beta*beta ;
-	gamma2 = gamma*gamma ;
-	bg2 = beta2*gamma2 ;
+	beta2 = beta * beta ;
+	gamma2 = gamma * gamma ;
+	bg2 = beta2 * gamma2 ;
 
 
-	double RateMass = e_mass_/ mass;
+	double RateMass = e_mass_ / mass;
 
-	Tmax = 2.*e_mass_*bg2
-	  /(1.+2.*gamma*RateMass+RateMass*RateMass) ;
+	Tmax = 2. * e_mass_ * bg2 / (1.+ 2.* gamma * RateMass + RateMass * RateMass) ;
 
-	dedx = log(2.*e_mass_*bg2*Tmax/Eexc2);
-	if(type == loss)
-	  dedx -= 2.*beta2;
+	dedx = log( 2. * e_mass_ * bg2 * Tmax / Eexc2);
+	if( type == loss )
+	  dedx -= 2. * beta2;
 	else {
-	  rcut =  ( _cutOffEnergy< Tmax) ? _cutOffEnergy/Tmax : 1;
-	  dedx += log(rcut)-(1.+rcut)*beta2;
+	  rcut =  ( _cutOffEnergy < Tmax) ? _cutOffEnergy/Tmax : 1;
+	  dedx += log(rcut) - (1. + rcut) * beta2;
 	}
 
 	// density correction 
 	x = log(bg2)/twoln10 ;
 	if ( x < _x0 ) {
-	  if(_delta0 > 0) {
-	    delta = _delta0*pow(10.0,2*(x-_x0));
+	  if( _delta0 > 0) {
+	    delta = _delta0 * pow( 10.0, 2 * (x-_x0) );
 	  }
 	  else {
 	    delta = 0.;
 	  }
 	} else {
-	  delta = twoln10*x - _bigc;
+	  delta = twoln10 * x - _bigc;
 	  if ( x < _x1 )
-	    delta += _afactor * pow((_x1 - x), _mpower);
+	    delta += _afactor * pow( (_x1 - x), _mpower );
 	} 
 
 	// shell correction          
 	if ( bg2 > bg2lim ) {
 	  sh = 0. ;      
 	  x = 1. ;
-	  for (int k=0; k<=2; k++) {
+	  for (int k = 0; k <= 2; k++) {
 	    x *= bg2 ;
 	    sh += (*_shellCorrectionVector)[k]/x;
 	  }
@@ -198,19 +191,18 @@ namespace MatEnv {
 	else {
 	  sh = 0. ;      
 	  x = 1. ;
-	  for (int k=0; k<2; k++) {
+	  for (int k = 0; k < 2; k++) {
 	    x *= bg2lim ;
 	    sh += (*_shellCorrectionVector)[k]/x;
 	  }
-	  sh *= log(tau/_taul)/log(taulim/_taul);
+	  sh *= log(tau/_taul) / log(taulim/_taul);
 	}
 	dedx -= delta + sh ;
-	dedx *= -_dgev*_density*_za / beta2 ;
+	dedx *= - _dgev * _density * _za / beta2 ;
 	return dedx;
       } else
 	return 0.0;
     }
-
 
 
   double 
@@ -221,27 +213,27 @@ namespace MatEnv {
       // see how far I can step, within tolerance, given this energy loss
       double maxstep = maxStepdEdx(mom,mass,dedx);
       // if this is larger than my path, I'm done
-      if(maxstep>pathlen){
-	return dedx*pathlen;
+      if( maxstep > pathlen){
+	return dedx * pathlen;
       } else {
 	// subdivide the material
-	unsigned nstep = std::min(int(pathlen/maxstep) + 1,maxnstep);
+	unsigned nstep = std::min( int(pathlen/maxstep) + 1 , maxnstep );
 	double step = pathlen/nstep;
 	double energy = particleEnergy(mom,mass);
-	double deltae = step*dedx;
-	double newenergy(energy+deltae);
+	double deltae = step * dedx;
+	double newenergy( energy + deltae);
 	double eloss(deltae);
-	for(unsigned istep=0;istep<nstep-1;istep++){
+	for(unsigned istep=0; istep < nstep-1; istep++){
 	  if(newenergy>mass){
 	    // compute the new dedx given the new momentum
 	    double newmom = particleMomentum(newenergy,mass);
-	    deltae = step*dEdx(newmom,_elossType,mass);
+	    deltae = step * dEdx(newmom,_elossType,mass);
 	    // compute the loss in this step
 	    eloss += deltae;
 	    newenergy += deltae;
 	  } else {
 	    // lost all kinetic energy; stop
-	    eloss = mass-energy;
+	    eloss = mass - energy;
 	    break;
 	  }
 	}
@@ -258,21 +250,21 @@ namespace MatEnv {
       // see how far I can step, within tolerance, given this energy loss
       double maxstep = maxStepdEdx(mom,mass,dedx);
       // if this is larger than my path, I'm done
-      if(maxstep>pathlen){
-	return -dedx*pathlen;
+      if( maxstep > pathlen){
+	return -dedx * pathlen;
       } else {
 	// subdivide the material
-	unsigned nstep = std::min(int(pathlen/maxstep) + 1,maxnstep);
+	unsigned nstep = std::min( int(pathlen/maxstep) + 1 , maxnstep );
 	double step = pathlen/nstep;
 	double energy = particleEnergy(mom,mass);
-	double deltae = -step*dedx;
+	double deltae = -step * dedx;
 	// move to the middle of the slice of material
-	double newenergy(energy+deltae);
+	double newenergy(energy + deltae);
 	double egain(deltae);
-	for(unsigned istep=0;istep<nstep-1;istep++){
+	for(unsigned istep = 0; istep < nstep-1; istep++){
 	  // compute the new dedx given the new momentum
 	  double newmom = particleMomentum(newenergy,mass);
-	  double deltae = -step*dEdx(newmom,_elossType,mass);
+	  double deltae = -step * dEdx(newmom,_elossType,mass);
 	  egain += deltae;
 	  newenergy += deltae;
 	}
@@ -301,16 +293,16 @@ namespace MatEnv {
       double beta = particleBeta(mom,mass);
       double emax = eloss_emax(mom,mass);
       double xi = eloss_xi(beta,fabs(pathlen));
-      double kappa = xi/emax;
-      double gam = sqrt(1.0-0.5*pow(beta,2));
+      double kappa = xi / emax;
+      double gam = sqrt( 1.0 - (0.5 * pow(beta,2) ) );
       // formula comes from GFLUCT.F in gphys dnb Jun 4 2004
       //
       // this formula seriously overestimates the rms when kappa<0.001
       // This only really affects electrons
       // as for heavier particles resolution effects already dominate when we get to
       // this range.  I'll truncate
-      if(kappa < _minkappa)kappa = _minkappa;
-      double elossrms = xi*sqrt(gam/kappa);
+      if( kappa < _minkappa ) kappa = _minkappa;
+      double elossrms = xi * sqrt( gam / kappa );
       //  cout << "beta = " << beta
       //       << " emax = " << emax
       //       << " xi = " << xi
@@ -326,17 +318,16 @@ namespace MatEnv {
     DetMaterial::eloss_emax(double mom,double mass){
       double beta = particleBeta(mom,mass);
       double gamma = particleGamma(mom,mass);
-      double mratio = e_mass_/mass;
-      double emax = 2*e_mass_*pow(beta*gamma,2)/
-	(1+2*gamma*mratio + pow(mratio,2));
-      if(mass <= e_mass_)
+      double mratio = e_mass_ / mass;
+      double emax = 2 * e_mass_ * pow(beta*gamma,2)/ ( 1 + 2 * gamma * mratio + pow(mratio,2) );
+      if( mass <= e_mass_ )
 	emax *= 0.5;
       return emax;
     }
 
   double
     DetMaterial::eloss_xi(double beta,double pathlen) const{
-      return _dgev*_za*_density*fabs(pathlen)/pow(beta,2);
+      return _dgev * _za * _density * fabs(pathlen) / pow(beta,2);
     }
 
   void
@@ -362,11 +353,11 @@ namespace MatEnv {
       double betagamma = particleBetaGamma(mom,mass);
       double energy = particleEnergy(mom,mass);
       // basic calculation, based on constant dE/dx
-      if(dEdx<0.0){
-	double maxstep = -tol*energy/dEdx;
+      if( dEdx < 0.0 ){
+	double maxstep = -tol * energy / dEdx;
 	// Modify for steep rise at low momentum
-	if(betagamma<2.0)
-	  maxstep *= pow(betagamma,2)/betapower;
+	if( betagamma < 2.0 )
+	  maxstep *= pow(betagamma,2) / betapower;
 	return maxstep;
       }
       else
@@ -377,7 +368,7 @@ namespace MatEnv {
   double
     DetMaterial::nSingleScatter(double mom,double pathlen, double mass) const {
       double beta = particleBeta(mom,mass);
-      return pathlen*_nbar/pow(beta,2);
+      return pathlen * _nbar / pow(beta,2);
     }
 
 
@@ -386,8 +377,8 @@ namespace MatEnv {
   double
     DetMaterial::highlandSigma(double mom,double pathlen, double mass) const {
       if(mom>0.0){
-	double radfrac = _invx0*fabs(pathlen);
-	return _msmom*sqrt(radfrac)/(mom*particleBeta(mom,mass));
+	double radfrac = _invx0 * fabs(pathlen);
+	return _msmom * sqrt(radfrac) / ( mom * particleBeta(mom,mass));
       } else
 	return 1.0;
     }

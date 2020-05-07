@@ -20,6 +20,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <memory>
 #include <math.h>
 #include <algorithm>
 
@@ -134,13 +135,13 @@ namespace MatEnv {
       double _density;
 
       int _noem;
-      std::vector< double >* _shellCorrectionVector;
-      std::vector< double >* _vecNbOfAtomsPerVolume;
-      std::vector< double >* _vecTau0;
-      std::vector< double >* _vecAlow;
-      std::vector< double >* _vecBlow;
-      std::vector< double >* _vecClow;
-      std::vector< double >* _vecZ;
+      std::unique_ptr<std::vector< double >> _shellCorrectionVector;
+      std::unique_ptr<std::vector< double >> _vecNbOfAtomsPerVolume;
+      std::unique_ptr<std::vector< double >> _vecTau0;
+      std::unique_ptr<std::vector< double >> _vecAlow;
+      std::unique_ptr<std::vector< double >> _vecBlow;
+      std::unique_ptr<std::vector< double >> _vecClow;
+      std::unique_ptr<std::vector< double >> _vecZ;
       double _taul;
 
       // cached values to speed calculations
